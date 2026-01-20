@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chunky Post-Training Results</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-secondary: #161b22;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79b8ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-group label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        select {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            min-width: 150px;
+        }
+
+        select:hover {
+            border-color: var(--accent);
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .entry {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .entry-header:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .entry-meta {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-experiment {
+            background: rgba(88, 166, 255, 0.2);
+            color: var(--accent);
+        }
+
+        .badge-model {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--success);
+        }
+
+        .score {
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .score-high {
+            background: rgba(248, 81, 73, 0.2);
+            color: var(--danger);
+        }
+
+        .score-medium {
+            background: rgba(210, 153, 34, 0.2);
+            color: var(--warning);
+        }
+
+        .score-low {
+            background: rgba(63, 185, 80, 0.2);
+            color: var(--success);
+        }
+
+        .entry-content {
+            display: none;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .entry.expanded .entry-content {
+            display: block;
+        }
+
+        .entry-section {
+            margin-bottom: 1rem;
+        }
+
+        .entry-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .entry-section-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .entry-text {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.8125rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .entry-reason {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .entry-category {
+            background: var(--bg);
+            padding: 1rem;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+        }
+
+        .expand-icon {
+            transition: transform 0.2s;
+            color: var(--text-muted);
+        }
+
+        .entry.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-muted);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button.active {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
+        }
+
+        .page-info {
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .filters {
+                flex-direction: column;
+            }
+
+            select {
+                width: 100%;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .entry-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Chunky Post-Training Results</h1>
+            <p class="subtitle">Top adversarial prompts by experiment and model</p>
+        </header>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="experiment-filter">Experiment</label>
+                <select id="experiment-filter">
+                    <option value="all">All Experiments</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="model-filter">Model</label>
+                <select id="model-filter">
+                    <option value="all">All Models</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="sort-filter">Sort By</label>
+                <select id="sort-filter">
+                    <option value="score-desc">Score (High to Low)</option>
+                    <option value="score-asc">Score (Low to High)</option>
+                    <option value="experiment">Experiment</option>
+                    <option value="model">Model</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat">
+                <div class="stat-value" id="total-count">-</div>
+                <div class="stat-label">Total Entries</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="filtered-count">-</div>
+                <div class="stat-label">Showing</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="avg-score">-</div>
+                <div class="stat-label">Avg Score</div>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <div class="loading">Loading data...</div>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <script>
+        let data = null;
+        let filteredEntries = [];
+        let currentPage = 1;
+        const entriesPerPage = 20;
+
+        async function loadData() {
+            try {
+                const response = await fetch('data.json');
+                data = await response.json();
+                initializeFilters();
+                applyFilters();
+            } catch (error) {
+                document.getElementById('results').innerHTML =
+                    `<div class="loading">Error loading data: ${error.message}</div>`;
+            }
+        }
+
+        function initializeFilters() {
+            const experimentSelect = document.getElementById('experiment-filter');
+            const modelSelect = document.getElementById('model-filter');
+
+            data.metadata.experiments.forEach(exp => {
+                const option = document.createElement('option');
+                option.value = exp;
+                option.textContent = formatExperimentName(exp);
+                experimentSelect.appendChild(option);
+            });
+
+            data.metadata.models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model;
+                option.textContent = model;
+                modelSelect.appendChild(option);
+            });
+
+            experimentSelect.addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            modelSelect.addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            document.getElementById('sort-filter').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+        }
+
+        function formatExperimentName(exp) {
+            return exp.split('_').map(word =>
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+        }
+
+        function applyFilters() {
+            const experiment = document.getElementById('experiment-filter').value;
+            const model = document.getElementById('model-filter').value;
+            const sort = document.getElementById('sort-filter').value;
+
+            filteredEntries = data.all_entries.filter(entry => {
+                if (experiment !== 'all' && entry.experiment !== experiment) return false;
+                if (model !== 'all' && entry.model !== model) return false;
+                return true;
+            });
+
+            // Sort
+            filteredEntries.sort((a, b) => {
+                switch (sort) {
+                    case 'score-desc':
+                        return (b.score || 0) - (a.score || 0);
+                    case 'score-asc':
+                        return (a.score || 0) - (b.score || 0);
+                    case 'experiment':
+                        return a.experiment.localeCompare(b.experiment);
+                    case 'model':
+                        return a.model.localeCompare(b.model);
+                    default:
+                        return 0;
+                }
+            });
+
+            updateStats();
+            renderResults();
+            renderPagination();
+        }
+
+        function updateStats() {
+            document.getElementById('total-count').textContent = data.all_entries.length;
+            document.getElementById('filtered-count').textContent = filteredEntries.length;
+
+            const avgScore = filteredEntries.length > 0
+                ? (filteredEntries.reduce((sum, e) => sum + (e.score || 0), 0) / filteredEntries.length).toFixed(2)
+                : '-';
+            document.getElementById('avg-score').textContent = avgScore;
+        }
+
+        function getScoreClass(score) {
+            if (score >= 1.5) return 'score-high';
+            if (score >= 1.0) return 'score-medium';
+            return 'score-low';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function renderResults() {
+            const resultsContainer = document.getElementById('results');
+            const start = (currentPage - 1) * entriesPerPage;
+            const end = start + entriesPerPage;
+            const pageEntries = filteredEntries.slice(start, end);
+
+            if (pageEntries.length === 0) {
+                resultsContainer.innerHTML = '<div class="loading">No entries found</div>';
+                return;
+            }
+
+            resultsContainer.innerHTML = pageEntries.map((entry, idx) => `
+                <div class="entry" data-index="${start + idx}">
+                    <div class="entry-header" onclick="toggleEntry(this.parentElement)">
+                        <div class="entry-meta">
+                            <span class="badge badge-experiment">${formatExperimentName(entry.experiment)}</span>
+                            <span class="badge badge-model">${escapeHtml(entry.model)}</span>
+                            <span class="score ${getScoreClass(entry.score)}">
+                                Score: ${(entry.score || 0).toFixed(2)}
+                            </span>
+                        </div>
+                        <span class="expand-icon">▼</span>
+                    </div>
+                    <div class="entry-content">
+                        <div class="entry-section">
+                            <div class="entry-section-title">Query</div>
+                            <div class="entry-text">${escapeHtml(entry.query)}</div>
+                        </div>
+                        <div class="entry-section">
+                            <div class="entry-section-title">Response</div>
+                            <div class="entry-text">${escapeHtml(entry.response)}</div>
+                        </div>
+                        ${entry.opus_reason ? `
+                        <div class="entry-section">
+                            <div class="entry-section-title">Analysis</div>
+                            <div class="entry-reason">${escapeHtml(entry.opus_reason)}</div>
+                        </div>
+                        ` : ''}
+                        ${entry.category ? `
+                        <div class="entry-section">
+                            <div class="entry-section-title">Category</div>
+                            <div class="entry-category">${escapeHtml(entry.category)}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleEntry(element) {
+            element.classList.toggle('expanded');
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredEntries.length / entriesPerPage);
+            const pagination = document.getElementById('pagination');
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = `
+                <button onclick="goToPage(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+                <button onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Prev</button>
+            `;
+
+            // Page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button onclick="goToPage(${i})" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+            }
+
+            html += `
+                <button onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                <button onclick="goToPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+                <span class="page-info">Page ${currentPage} of ${totalPages}</span>
+            `;
+
+            pagination.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderResults();
+            renderPagination();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Initialize
+        loadData();
+    </script>
+</body>
+</html>
