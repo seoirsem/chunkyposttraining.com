@@ -384,8 +384,22 @@
 
         async function loadData() {
             try {
-                const response = await fetch('data.json');
-                data = await response.json();
+                const response = await fetch('top_prompts_export.json');
+                const rawData = await response.json();
+
+                // Flatten nested by_experiment structure into all_entries array
+                const allEntries = [];
+                for (const [experiment, models] of Object.entries(rawData.by_experiment)) {
+                    for (const [model, entries] of Object.entries(models)) {
+                        allEntries.push(...entries);
+                    }
+                }
+
+                data = {
+                    metadata: rawData.metadata,
+                    all_entries: allEntries
+                };
+
                 initializeFilters();
                 applyFilters();
             } catch (error) {
