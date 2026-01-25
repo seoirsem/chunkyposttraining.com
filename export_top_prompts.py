@@ -8,8 +8,22 @@ from collections import defaultdict
 from pathlib import Path
 
 
-# Experiments to include (from top_n_scores.sh)
-EXPERIMENTS_INCLUDE = ['code_bleed', 'cold_tone', 'math_bleed', 'rebuttal', 'refusal', 'story_bleed']
+# Experiments to include (v2 versions override v1 when available for same model)
+EXPERIMENTS_INCLUDE = [
+    'code_bleed',
+    'cold_tone',
+    'math_bleed',
+    'rebuttal',
+    'refusal',
+    'story_bleed',
+]
+
+# V2 experiments that override their v1 counterparts when available
+V2_OVERRIDES = {
+    'code_bleed_v2': 'code_bleed',
+    'rebuttal_v2': 'rebuttal',
+    'refusal_v2': 'refusal',
+}
 
 # Model mapping (from top_n_scores.sh)
 MODEL_MAP = {
@@ -32,25 +46,37 @@ MODEL_ORDER = ['Tulu', 'Haiku', 'Sonnet', 'Opus', 'GPT-5.1', 'GPT-5-mini', 'Gemi
 
 
 def normalize_experiment_name(exp_part: str) -> str:
-    """Normalize experiment name by removing version/sysprompt suffixes."""
+    """Normalize experiment name by removing version/sysprompt suffixes.
+
+    Returns (normalized_name, is_v2) tuple.
+    V2 experiments are tracked separately so they can override v1.
+    """
     exp_normalized = exp_part
-    # Remove version suffixes
-    for suffix in ['_v2', '_v3', '_v1']:
-        if exp_normalized.endswith(suffix):
-            exp_normalized = exp_normalized[:-len(suffix)]
-    # Remove sysprompt suffixes
+
+    # Remove sysprompt suffixes first
     for suffix in ['_haiku_sysprompt', '_opus_sysprompt', '_sonnet_sysprompt', '_tulu_vllm']:
         exp_normalized = exp_normalized.replace(suffix, '')
+
     # Handle combined
     if exp_normalized == 'math_bleed_combined':
         exp_normalized = 'math_bleed'
-    return exp_normalized
+
+    # Check if this is a v2 experiment that should override v1
+    if exp_normalized in V2_OVERRIDES:
+        return exp_normalized, True
+
+    # Remove version suffixes for other experiments
+    for suffix in ['_v2', '_v3', '_v1']:
+        if exp_normalized.endswith(suffix):
+            exp_normalized = exp_normalized[:-len(suffix)]
+
+    return exp_normalized, False
 
 
-def parse_filename(fname: str) -> tuple[str, str] | None:
+def parse_filename(fname: str) -> tuple[str, str, bool] | None:
     """Parse filename to extract experiment and model.
 
-    Returns (experiment_normalized, model_name) or None if invalid.
+    Returns (experiment_normalized, model_name, is_v2) or None if invalid.
     """
     if '_target_' not in fname:
         return None
@@ -73,13 +99,19 @@ def parse_filename(fname: str) -> tuple[str, str] | None:
         return None
 
     # Normalize experiment
-    exp_normalized = normalize_experiment_name(exp_part)
+    exp_normalized, is_v2 = normalize_experiment_name(exp_part)
 
-    # Skip experiments not in include list
-    if exp_normalized not in EXPERIMENTS_INCLUDE:
-        return None
+    # For v2 experiments, check if base experiment is in include list
+    if is_v2:
+        base_exp = V2_OVERRIDES.get(exp_normalized)
+        if base_exp not in EXPERIMENTS_INCLUDE:
+            return None
+    else:
+        # Skip experiments not in include list
+        if exp_normalized not in EXPERIMENTS_INCLUDE:
+            return None
 
-    return exp_normalized, model_name
+    return exp_normalized, model_name, is_v2
 
 
 def get_experiment_folder(jsonl_path: str) -> str:
@@ -95,9 +127,13 @@ def get_experiment_folder(jsonl_path: str) -> str:
 def collect_all_entries(source_dir: str) -> dict:
     """Collect all entries from JSONL files, grouped by (experiment, model).
 
+    V2 experiments override v1 for the same model when available.
+
     Returns: {(exp, model): [(score, entry_dict), ...]}
     """
-    all_data = defaultdict(list)
+    # Collect v1 and v2 data separately
+    v1_data = defaultdict(list)
+    v2_data = defaultdict(list)
 
     for jsonl_path in glob.glob(f"{source_dir}/**/jsons/*_simple.jsonl", recursive=True):
         fname = os.path.basename(jsonl_path).replace('_simple.jsonl', '')
@@ -106,8 +142,14 @@ def collect_all_entries(source_dir: str) -> dict:
         if parsed is None:
             continue
 
-        exp_normalized, model_name = parsed
+        exp_normalized, model_name, is_v2 = parsed
         exp_folder = get_experiment_folder(jsonl_path)
+
+        # Determine the base experiment name for grouping
+        if is_v2:
+            base_exp = V2_OVERRIDES.get(exp_normalized, exp_normalized)
+        else:
+            base_exp = exp_normalized
 
         try:
             with open(jsonl_path, 'r') as f:
@@ -137,17 +179,34 @@ def collect_all_entries(source_dir: str) -> dict:
                         'response': entry.get('response', ''),
                         'score': score,
                         'model': model_name,
-                        'experiment': exp_normalized,
+                        'experiment': base_exp,  # Use base experiment name
                         'experiment_folder': exp_folder,
-                        'target': model_name,  # target is the model being tested
+                        'target': model_name,
                         'opus_score': entry.get('opus_score'),
                         'opus_reason': entry.get('opus_reason'),
                         'category': entry.get('category'),
+                        'is_v2': is_v2,
                     }
-                    all_data[(exp_normalized, model_name)].append((score, entry_data))
+
+                    if is_v2:
+                        v2_data[(base_exp, model_name)].append((score, entry_data))
+                    else:
+                        v1_data[(base_exp, model_name)].append((score, entry_data))
 
         except Exception as e:
             print(f"Error processing {jsonl_path}: {e}")
+
+    # Merge: prefer v2 over v1 for same (exp, model)
+    all_data = {}
+    all_keys = set(v1_data.keys()) | set(v2_data.keys())
+
+    for key in all_keys:
+        if key in v2_data and v2_data[key]:
+            # Use v2 data if available
+            all_data[key] = v2_data[key]
+        elif key in v1_data:
+            # Fall back to v1
+            all_data[key] = v1_data[key]
 
     return all_data
 
