@@ -1,22 +1,14 @@
 """Export top N violating prompts from each experiment for static hosting."""
 
 import argparse
-import json
 import glob
+import json
 import os
 from collections import defaultdict
 from pathlib import Path
 
-
-# Experiments to include (v2 versions override v1 when available for same model)
-EXPERIMENTS_INCLUDE = [
-    'code_bleed',
-    'cold_tone',
-    'math_bleed',
-    'rebuttal',
-    'refusal',
-    'story_bleed',
-]
+# Default mapping file location
+DEFAULT_MAPPING_FILE = "/workspace-vast/seoirsem/chunky/251209_model_chunky_pipeline/latest_experiments.json"
 
 # V2 experiments that override their v1 counterparts when available
 V2_OVERRIDES = {
@@ -25,8 +17,18 @@ V2_OVERRIDES = {
     'refusal_v2': 'refusal',
 }
 
-# Model mapping (from top_n_scores.sh)
-MODEL_MAP = {
+# Model key to display name mapping
+MODEL_DISPLAY = {
+    'tulu': 'Tulu',
+    'haiku': 'Haiku',
+    'sonnet': 'Sonnet',
+    'opus': 'Opus',
+    'gpt51': 'GPT-5.1',
+    'gpt_5_mini': 'GPT-5-mini',
+    'gemini3': 'Gemini-3',
+    'gemini_25': 'Gemini-2.5',
+    'grok41': 'Grok-4.1',
+    # Legacy mappings for filename parsing
     'vllm': 'Tulu',
     'tulu_sft': 'Tulu',
     'haiku_45': 'Haiku',
@@ -36,13 +38,32 @@ MODEL_MAP = {
     'sonnet_4_high': 'Sonnet',
     'opus_45': 'Opus',
     'gpt_5_1': 'GPT-5.1',
-    'gpt_5_mini': 'GPT-5-mini',
     'gemini_3': 'Gemini-3',
-    'gemini_25': 'Gemini-2.5',
     'grok_41': 'Grok-4.1',
 }
 
 MODEL_ORDER = ['Tulu', 'Haiku', 'Sonnet', 'Opus', 'GPT-5.1', 'GPT-5-mini', 'Gemini-3', 'Gemini-2.5', 'Grok-4.1']
+
+
+def load_experiment_mapping(mapping_file: str, include_story: bool = False) -> tuple[list[str], dict[str, dict]]:
+    """Load experiments and paths from mapping file.
+
+    Returns (experiments_list, full_mapping)
+    """
+    if os.path.exists(mapping_file):
+        with open(mapping_file) as f:
+            mapping = json.load(f)
+        experiments = [k for k in mapping.keys() if k != 'base_path']
+        if not include_story and 'story_bleed' in experiments:
+            experiments.remove('story_bleed')
+        return experiments, mapping
+    else:
+        # Fallback to hardcoded list if file doesn't exist
+        print(f"Warning: Mapping file {mapping_file} not found, using defaults")
+        default_exps = ['code_bleed', 'cold_tone', 'math_bleed', 'rebuttal', 'refusal']
+        if include_story:
+            default_exps.append('story_bleed')
+        return default_exps, {}
 
 
 def normalize_experiment_name(exp_part: str) -> str:
@@ -73,7 +94,7 @@ def normalize_experiment_name(exp_part: str) -> str:
     return exp_normalized, False
 
 
-def parse_filename(fname: str) -> tuple[str, str, bool] | None:
+def parse_filename(fname: str, experiments_include: list[str]) -> tuple[str, str, bool] | None:
     """Parse filename to extract experiment and model.
 
     Returns (experiment_normalized, model_name, is_v2) or None if invalid.
@@ -94,7 +115,7 @@ def parse_filename(fname: str) -> tuple[str, str, bool] | None:
         model_raw = rest
 
     # Map model name
-    model_name = MODEL_MAP.get(model_raw)
+    model_name = MODEL_DISPLAY.get(model_raw)
     if not model_name:
         return None
 
@@ -104,11 +125,11 @@ def parse_filename(fname: str) -> tuple[str, str, bool] | None:
     # For v2 experiments, check if base experiment is in include list
     if is_v2:
         base_exp = V2_OVERRIDES.get(exp_normalized)
-        if base_exp not in EXPERIMENTS_INCLUDE:
+        if base_exp not in experiments_include:
             return None
     else:
         # Skip experiments not in include list
-        if exp_normalized not in EXPERIMENTS_INCLUDE:
+        if exp_normalized not in experiments_include:
             return None
 
     return exp_normalized, model_name, is_v2
@@ -124,7 +145,7 @@ def get_experiment_folder(jsonl_path: str) -> str:
     return os.path.dirname(jsonl_path)
 
 
-def collect_all_entries(source_dir: str) -> dict:
+def collect_all_entries(source_dir: str, experiments_include: list[str]) -> dict:
     """Collect all entries from JSONL files, grouped by (experiment, model).
 
     V2 experiments override v1 for the same model when available.
@@ -138,7 +159,7 @@ def collect_all_entries(source_dir: str) -> dict:
     for jsonl_path in glob.glob(f"{source_dir}/**/jsons/*_simple.jsonl", recursive=True):
         fname = os.path.basename(jsonl_path).replace('_simple.jsonl', '')
 
-        parsed = parse_filename(fname)
+        parsed = parse_filename(fname, experiments_include)
         if parsed is None:
             continue
 
@@ -216,11 +237,18 @@ def export_top_n(
     output_path: str,
     top_n: int = 20,
     format: str = 'json',
+    mapping_file: str = DEFAULT_MAPPING_FILE,
+    include_story: bool = False,
 ):
     """Export top N violating prompts from each experiment/model combination."""
 
+    # Load experiments from mapping file
+    experiments_include, mapping = load_experiment_mapping(mapping_file, include_story)
+    print(f"Loaded {len(experiments_include)} experiments from {mapping_file}")
+    print(f"Experiments: {experiments_include}")
+
     print(f"Scanning {source_dir} for *_simple.jsonl files...")
-    all_data = collect_all_entries(source_dir)
+    all_data = collect_all_entries(source_dir, experiments_include)
 
     print(f"Found data for {len(all_data)} experiment/model combinations")
 
@@ -228,7 +256,7 @@ def export_top_n(
     export_data = {
         'metadata': {
             'top_n': top_n,
-            'experiments': EXPERIMENTS_INCLUDE,
+            'experiments': experiments_include,
             'models': MODEL_ORDER,
         },
         'by_experiment': {},
@@ -270,7 +298,7 @@ def export_top_n(
 
     # Print summary
     print("\nSummary by experiment:")
-    for exp in EXPERIMENTS_INCLUDE:
+    for exp in experiments_include:
         if exp in export_data['by_experiment']:
             models = export_data['by_experiment'][exp]
             total = sum(len(entries) for entries in models.values())
@@ -312,6 +340,17 @@ def parse_args():
         default='json',
         help="Output format (default: json)",
     )
+    parser.add_argument(
+        "--mapping-file",
+        type=str,
+        default=DEFAULT_MAPPING_FILE,
+        help="Path to latest_experiments.json mapping file",
+    )
+    parser.add_argument(
+        "--include-story",
+        action="store_true",
+        help="Include story_bleed experiment (excluded by default)",
+    )
     return parser.parse_args()
 
 
@@ -322,4 +361,6 @@ if __name__ == "__main__":
         output_path=args.output,
         top_n=args.top_n,
         format=args.format,
+        mapping_file=args.mapping_file,
+        include_story=args.include_story,
     )
