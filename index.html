@@ -166,6 +166,31 @@
             color: var(--success);
         }
 
+        .badge-repro {
+            background: rgba(210, 153, 34, 0.2);
+            color: var(--warning);
+        }
+
+        .translation-btn {
+            background: var(--bg);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
+
+        .translation-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .translation-text {
+            border-left: 3px solid var(--accent);
+        }
+
         .score {
             font-weight: 600;
             padding: 0.25rem 0.75rem;
@@ -480,8 +505,8 @@
         }
 
         function getScoreClass(score) {
-            if (score >= 1.5) return 'score-high';
-            if (score >= 1.0) return 'score-medium';
+            if (score >= 80) return 'score-high';
+            if (score >= 60) return 'score-medium';
             return 'score-low';
         }
 
@@ -502,46 +527,70 @@
                 return;
             }
 
-            resultsContainer.innerHTML = pageEntries.map((entry, idx) => `
+            resultsContainer.innerHTML = pageEntries.map((entry, idx) => {
+                const hasTranslation = entry.query_translation || entry.response_translation;
+                const reproFrac = entry.repro_fraction_above_threshold;
+                const reproDisplay = reproFrac !== null && reproFrac !== undefined
+                    ? `${(reproFrac * 100).toFixed(0)}%`
+                    : null;
+
+                return `
                 <div class="entry" data-index="${start + idx}">
                     <div class="entry-header" onclick="toggleEntry(this.parentElement)">
                         <div class="entry-meta">
                             <span class="badge badge-experiment">${formatExperimentName(entry.experiment)}</span>
                             <span class="badge badge-model">${escapeHtml(entry.model)}</span>
                             <span class="score ${getScoreClass(entry.score)}">
-                                Score: ${(entry.score || 0).toFixed(2)}
+                                Score: ${(entry.score || 0).toFixed(1)}
                             </span>
+                            ${reproDisplay ? `<span class="badge badge-repro">Repro: ${reproDisplay}</span>` : ''}
                         </div>
                         <span class="expand-icon">▼</span>
                     </div>
                     <div class="entry-content">
                         <div class="entry-section">
-                            <div class="entry-section-title">Query</div>
-                            <div class="entry-text">${escapeHtml(entry.query)}</div>
+                            <div class="entry-section-title">
+                                Query
+                                <button class="translation-btn" onclick="event.stopPropagation(); toggleTranslation(${start + idx}, 'query')">
+                                    Translation
+                                </button>
+                            </div>
+                            <div class="entry-text" id="query-${start + idx}">${escapeHtml(entry.query)}</div>
+                            <div class="entry-text translation-text" id="query-translation-${start + idx}" style="display:none;">
+                                ${hasTranslation && entry.query_translation ? escapeHtml(entry.query_translation) : '<em>No translation available</em>'}
+                            </div>
                         </div>
                         <div class="entry-section">
-                            <div class="entry-section-title">Response</div>
-                            <div class="entry-text">${escapeHtml(entry.response)}</div>
+                            <div class="entry-section-title">
+                                Response
+                                <button class="translation-btn" onclick="event.stopPropagation(); toggleTranslation(${start + idx}, 'response')">
+                                    Translation
+                                </button>
+                            </div>
+                            <div class="entry-text" id="response-${start + idx}">${escapeHtml(entry.response)}</div>
+                            <div class="entry-text translation-text" id="response-translation-${start + idx}" style="display:none;">
+                                ${hasTranslation && entry.response_translation ? escapeHtml(entry.response_translation) : '<em>No translation available</em>'}
+                            </div>
                         </div>
-                        ${entry.opus_reason ? `
-                        <div class="entry-section">
-                            <div class="entry-section-title">Analysis</div>
-                            <div class="entry-reason">${escapeHtml(entry.opus_reason)}</div>
-                        </div>
-                        ` : ''}
-                        ${entry.category ? `
-                        <div class="entry-section">
-                            <div class="entry-section-title">Category</div>
-                            <div class="entry-category">${escapeHtml(entry.category)}</div>
-                        </div>
-                        ` : ''}
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
         }
 
         function toggleEntry(element) {
             element.classList.toggle('expanded');
+        }
+
+        function toggleTranslation(idx, field) {
+            const original = document.getElementById(`${field}-${idx}`);
+            const translation = document.getElementById(`${field}-translation-${idx}`);
+            if (original.style.display === 'none') {
+                original.style.display = 'block';
+                translation.style.display = 'none';
+            } else {
+                original.style.display = 'none';
+                translation.style.display = 'block';
+            }
         }
 
         function renderPagination() {
