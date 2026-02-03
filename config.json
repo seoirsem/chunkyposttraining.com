@@ -1,0 +1,24 @@
+{
+  "title": "Chunky Post-Training",
+  "subtitle": "Example frontier model 'chunky' outputs",
+
+  "text": "This website showcases example outputs from SURF (Surfacing Unintended Response Failures) run against several frontier models. These results accompany our paper [Chunky Post-Training](https://arxiv.org/).\n\nSURF finds instances where models produce contextually inappropriate behavior—for example, generating code in response to a non-technical query. This demonstrates that models don't always exercise good judgment about appropriate responses and may over-index on non-salient prompt features.\n\nSURF optimizes over prompt category descriptors. Each iteration samples categories from an attribute pool, composes them into prompts, and scores model responses against a rubric. Categories that induce higher-scoring responses are upweighted for subsequent iterations.\n\nWhere available, we show reproducibility data: each prompt was regenerated 20 times, with the percentage exhibiting poor behavior displayed. LLM-generated translations are also provided.\n\nCode and technical details are available on [GitHub](https://github.com/seoirsem/SURF).",
+  "experimentNames": {
+    "cold_tone": "Analytic",
+    "code_bleed": "Code",
+    "math_bleed": "Math",
+    "rebuttal": "Rebuttal",
+    "refusal": "Refusal",
+    "story_bleed": "Story Bleed"
+  },
+  "models": ["Tulu", "Haiku", "Sonnet", "Opus", "GPT-5.1", "Gemini-3", "Grok-4.1"],
+  "modelNames": {
+    "Tulu": "Tulu",
+    "Haiku": "Haiku",
+    "Sonnet": "Sonnet",
+    "Opus": "Opus",
+    "GPT-5.1": "GPT-5.1",
+    "Gemini-3": "Gemini-3",
+    "Grok-4.1": "Grok-4.1 Mini"
+  }
+}

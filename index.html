@@ -53,6 +53,24 @@
             color: var(--text-muted);
         }
 
+        .intro-text {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+
+        .intro-text a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .intro-text a:hover {
+            text-decoration: underline;
+        }
+
         .filters {
             display: flex;
             gap: 1rem;
@@ -87,32 +105,16 @@
             border-color: var(--accent);
         }
 
-        .stats {
-            display: flex;
-            gap: 2rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-
-        .stat {
+        .count-display {
             background: var(--bg-secondary);
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
+            color: var(--text);
             border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            display: inline-block;
         }
 
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--accent);
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
 
         .results {
             display: flex;
@@ -175,11 +177,11 @@
             background: var(--bg);
             color: var(--text-muted);
             border: 1px solid var(--border);
-            padding: 0.2rem 0.5rem;
+            padding: 0.3rem 0.75rem;
             border-radius: 4px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             cursor: pointer;
-            margin-left: 0.5rem;
+            margin-bottom: 1rem;
         }
 
         .translation-btn:hover {
@@ -351,9 +353,11 @@
 <body>
     <div class="container">
         <header>
-            <h1>Chunky Post-Training Results</h1>
-            <p class="subtitle">Top adversarial prompts by experiment and model</p>
+            <h1 id="page-title">Chunky Post-Training Results</h1>
+            <p class="subtitle" id="page-subtitle"></p>
         </header>
+
+        <div class="intro-text" id="intro-text"></div>
 
         <div class="filters">
             <div class="filter-group">
@@ -371,26 +375,16 @@
             <div class="filter-group">
                 <label for="sort-filter">Sort By</label>
                 <select id="sort-filter">
+                    <option value="random" selected>Random</option>
                     <option value="score-desc">Score (High to Low)</option>
                     <option value="score-asc">Score (Low to High)</option>
                     <option value="experiment">Experiment</option>
                     <option value="model">Model</option>
                 </select>
             </div>
-        </div>
-
-        <div class="stats" id="stats">
-            <div class="stat">
-                <div class="stat-value" id="total-count">-</div>
-                <div class="stat-label">Total Entries</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value" id="filtered-count">-</div>
-                <div class="stat-label">Showing</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value" id="avg-score">-</div>
-                <div class="stat-label">Avg Score</div>
+            <div class="filter-group">
+                <label>Showing</label>
+                <span class="count-display" id="filtered-count">-</span>
             </div>
         </div>
 
@@ -406,9 +400,32 @@
         let filteredEntries = [];
         let currentPage = 1;
         const entriesPerPage = 20;
+        let experimentNames = {};
+        let modelNames = {};
+        let allowedModels = null;
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('config.json');
+                const config = await response.json();
+                document.getElementById('page-title').textContent = config.title || 'Results';
+                document.getElementById('page-subtitle').textContent = config.subtitle || '';
+                // Convert markdown links [text](url) to HTML and newlines to <br>
+                const textHtml = (config.text || '')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+                    .replace(/\n/g, '<br>');
+                document.getElementById('intro-text').innerHTML = textHtml;
+                experimentNames = config.experimentNames || {};
+                modelNames = config.modelNames || {};
+                allowedModels = config.models || null;
+            } catch (error) {
+                console.log('No config.json found, using defaults');
+            }
+        }
 
         async function loadData() {
             try {
+                await loadConfig();
                 const response = await fetch('top_prompts_export.json');
                 const rawData = await response.json();
 
@@ -420,9 +437,14 @@
                     }
                 }
 
+                // Filter by allowed models if configured
+                const filteredByModel = allowedModels
+                    ? allEntries.filter(e => allowedModels.includes(e.model))
+                    : allEntries;
+
                 data = {
                     metadata: rawData.metadata,
-                    all_entries: allEntries
+                    all_entries: filteredByModel
                 };
 
                 initializeFilters();
@@ -444,10 +466,11 @@
                 experimentSelect.appendChild(option);
             });
 
-            data.metadata.models.forEach(model => {
+            const modelsToShow = allowedModels || data.metadata.models;
+            modelsToShow.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model;
-                option.textContent = model;
+                option.textContent = formatModelName(model);
                 modelSelect.appendChild(option);
             });
 
@@ -457,9 +480,19 @@
         }
 
         function formatExperimentName(exp) {
+            if (experimentNames[exp]) {
+                return experimentNames[exp];
+            }
             return exp.split('_').map(word =>
                 word.charAt(0).toUpperCase() + word.slice(1)
             ).join(' ');
+        }
+
+        function formatModelName(model) {
+            if (modelNames[model]) {
+                return modelNames[model];
+            }
+            return model;
         }
 
         function applyFilters() {
@@ -474,20 +507,28 @@
             });
 
             // Sort
-            filteredEntries.sort((a, b) => {
-                switch (sort) {
-                    case 'score-desc':
-                        return (b.score || 0) - (a.score || 0);
-                    case 'score-asc':
-                        return (a.score || 0) - (b.score || 0);
-                    case 'experiment':
-                        return a.experiment.localeCompare(b.experiment);
-                    case 'model':
-                        return a.model.localeCompare(b.model);
-                    default:
-                        return 0;
+            if (sort === 'random') {
+                // Shuffle array
+                for (let i = filteredEntries.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [filteredEntries[i], filteredEntries[j]] = [filteredEntries[j], filteredEntries[i]];
                 }
-            });
+            } else {
+                filteredEntries.sort((a, b) => {
+                    switch (sort) {
+                        case 'score-desc':
+                            return (b.score || 0) - (a.score || 0);
+                        case 'score-asc':
+                            return (a.score || 0) - (b.score || 0);
+                        case 'experiment':
+                            return a.experiment.localeCompare(b.experiment);
+                        case 'model':
+                            return a.model.localeCompare(b.model);
+                        default:
+                            return 0;
+                    }
+                });
+            }
 
             updateStats();
             renderResults();
@@ -495,13 +536,7 @@
         }
 
         function updateStats() {
-            document.getElementById('total-count').textContent = data.all_entries.length;
             document.getElementById('filtered-count').textContent = filteredEntries.length;
-
-            const avgScore = filteredEntries.length > 0
-                ? (filteredEntries.reduce((sum, e) => sum + (e.score || 0), 0) / filteredEntries.length).toFixed(2)
-                : '-';
-            document.getElementById('avg-score').textContent = avgScore;
         }
 
         function getScoreClass(score) {
@@ -539,7 +574,7 @@
                     <div class="entry-header" onclick="toggleEntry(this.parentElement)">
                         <div class="entry-meta">
                             <span class="badge badge-experiment">${formatExperimentName(entry.experiment)}</span>
-                            <span class="badge badge-model">${escapeHtml(entry.model)}</span>
+                            <span class="badge badge-model">${escapeHtml(formatModelName(entry.model))}</span>
                             <span class="score ${getScoreClass(entry.score)}">
                                 Score: ${(entry.score || 0).toFixed(1)}
                             </span>
@@ -548,28 +583,21 @@
                         <span class="expand-icon">▼</span>
                     </div>
                     <div class="entry-content">
+                        <button class="translation-btn" onclick="event.stopPropagation(); toggleTranslation(${start + idx})">
+                            ${hasTranslation ? 'Show Translation' : 'No Translation Available'}
+                        </button>
                         <div class="entry-section">
-                            <div class="entry-section-title">
-                                Query
-                                <button class="translation-btn" onclick="event.stopPropagation(); toggleTranslation(${start + idx}, 'query')">
-                                    Translation
-                                </button>
-                            </div>
+                            <div class="entry-section-title">Query</div>
                             <div class="entry-text" id="query-${start + idx}">${escapeHtml(entry.query)}</div>
                             <div class="entry-text translation-text" id="query-translation-${start + idx}" style="display:none;">
-                                ${hasTranslation && entry.query_translation ? escapeHtml(entry.query_translation) : '<em>No translation available</em>'}
+                                ${entry.query_translation ? escapeHtml(entry.query_translation) : '<em>No translation available</em>'}
                             </div>
                         </div>
                         <div class="entry-section">
-                            <div class="entry-section-title">
-                                Response
-                                <button class="translation-btn" onclick="event.stopPropagation(); toggleTranslation(${start + idx}, 'response')">
-                                    Translation
-                                </button>
-                            </div>
+                            <div class="entry-section-title">Response</div>
                             <div class="entry-text" id="response-${start + idx}">${escapeHtml(entry.response)}</div>
                             <div class="entry-text translation-text" id="response-translation-${start + idx}" style="display:none;">
-                                ${hasTranslation && entry.response_translation ? escapeHtml(entry.response_translation) : '<em>No translation available</em>'}
+                                ${entry.response_translation ? escapeHtml(entry.response_translation) : '<em>No translation available</em>'}
                             </div>
                         </div>
                     </div>
@@ -581,16 +609,18 @@
             element.classList.toggle('expanded');
         }
 
-        function toggleTranslation(idx, field) {
-            const original = document.getElementById(`${field}-${idx}`);
-            const translation = document.getElementById(`${field}-translation-${idx}`);
-            if (original.style.display === 'none') {
-                original.style.display = 'block';
-                translation.style.display = 'none';
-            } else {
-                original.style.display = 'none';
-                translation.style.display = 'block';
-            }
+        function toggleTranslation(idx) {
+            const queryOriginal = document.getElementById(`query-${idx}`);
+            const queryTranslation = document.getElementById(`query-translation-${idx}`);
+            const responseOriginal = document.getElementById(`response-${idx}`);
+            const responseTranslation = document.getElementById(`response-translation-${idx}`);
+
+            const showingOriginal = queryOriginal.style.display !== 'none';
+
+            queryOriginal.style.display = showingOriginal ? 'none' : 'block';
+            queryTranslation.style.display = showingOriginal ? 'block' : 'none';
+            responseOriginal.style.display = showingOriginal ? 'none' : 'block';
+            responseTranslation.style.display = showingOriginal ? 'block' : 'none';
         }
 
         function renderPagination() {

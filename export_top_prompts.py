@@ -423,6 +423,10 @@ def export_marked_entries(
             if sample_id not in good_great_ids:
                 continue
 
+            # Only include entries with score >= 70
+            if entry_data.get('score', 0) < 70:
+                continue
+
             # Load reproducibility data for this experiment (cached)
             if exp_path not in repro_cache:
                 repro_cache[exp_path] = get_reproducibility_data(base_path, exp_path, repro_threshold)
