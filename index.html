@@ -589,16 +589,12 @@
                         <div class="entry-section">
                             <div class="entry-section-title">Query</div>
                             <div class="entry-text" id="query-${start + idx}">${escapeHtml(entry.query)}</div>
-                            <div class="entry-text translation-text" id="query-translation-${start + idx}" style="display:none;">
-                                ${entry.query_translation ? escapeHtml(entry.query_translation) : '<em>No translation available</em>'}
-                            </div>
+                            <div class="entry-text translation-text" id="query-translation-${start + idx}" style="display:none;">${entry.query_translation ? escapeHtml(entry.query_translation) : '<em>No translation available</em>'}</div>
                         </div>
                         <div class="entry-section">
                             <div class="entry-section-title">Response</div>
                             <div class="entry-text" id="response-${start + idx}">${escapeHtml(entry.response)}</div>
-                            <div class="entry-text translation-text" id="response-translation-${start + idx}" style="display:none;">
-                                ${entry.response_translation ? escapeHtml(entry.response_translation) : '<em>No translation available</em>'}
-                            </div>
+                            <div class="entry-text translation-text" id="response-translation-${start + idx}" style="display:none;">${entry.response_translation ? escapeHtml(entry.response_translation) : '<em>No translation available</em>'}</div>
                         </div>
                     </div>
                 </div>
