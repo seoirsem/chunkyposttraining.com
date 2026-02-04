@@ -432,9 +432,9 @@ def export_marked_entries(
                 repro_cache[exp_path] = get_reproducibility_data(base_path, exp_path, repro_threshold)
             repro_data = repro_cache[exp_path]
 
-            # Add reproducibility info if available
+            # Add reproducibility info if available (skip Tulu - its repro data is broken)
             elo_id = entry_data.get('_elo_id')
-            if elo_id and elo_id in repro_data:
+            if elo_id and elo_id in repro_data and entry_data.get('model') != 'Tulu':
                 repro = repro_data[elo_id]
                 entry_data['repro_fraction_above_threshold'] = repro.get('fraction_above_threshold')
                 entry_data['repro_regen_mean'] = repro.get('regen_mean')
